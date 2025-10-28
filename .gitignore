@@ -3,7 +3,7 @@
 *.lwi
 
 # 截图目录
-screenshots_*/
+screenshots/
 
 # Python缓存
 __pycache__/
@@ -21,4 +21,4 @@ __pycache__/
 
 projects/*
 .vsjet/*
-.cache/*
+
