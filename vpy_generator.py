@@ -71,10 +71,12 @@ def generate_preview_script(videos: List, output_path: str = "preview.vpy"):
         videos: 视频列表
         output_path: 输出脚本路径
     """
+    # 是否需要 QTGMC（仅当至少一个视频勾选时才尝试导入 havsfunc）
+    needs_qtgmc = any(getattr(v, 'use_qtgmc', False) for v in videos)
+
     script_lines = [
         "import vapoursynth as vs",
         "core = vs.core",
-        "import havsfunc as haf",
         "import os",
         "",
         "# 预览脚本 - 偏移量为0",
@@ -84,6 +86,19 @@ def generate_preview_script(videos: List, output_path: str = "preview.vpy"):
         "os.makedirs(cache_dir, exist_ok=True)",
         ""
     ]
+
+    # 可选导入 havsfunc
+    if needs_qtgmc:
+        script_lines.append("try:")
+        script_lines.append("    import havsfunc as haf")
+        script_lines.append("    HAF_AVAILABLE = True")
+        script_lines.append("except ImportError:")
+        script_lines.append("    HAF_AVAILABLE = False")
+        script_lines.append("    print('警告: havsfunc 未安装，QTGMC 将被跳过')")
+        script_lines.append("")
+    else:
+        script_lines.append("HAF_AVAILABLE = False")
+        script_lines.append("")
     
     # 尝试导入 awsmfunc
     script_lines.append("try:")
@@ -92,6 +107,21 @@ def generate_preview_script(videos: List, output_path: str = "preview.vpy"):
     script_lines.append("except ImportError:")
     script_lines.append("    HAS_AWSMFUNC = False")
     script_lines.append("    print('警告: awsmfunc 未安装，将不显示帧信息')")
+    script_lines.append("")
+
+    # 检测可用的视频源插件，并提供统一的加载函数
+    script_lines.append("HAS_LSMASH = hasattr(core, 'lsmas')")
+    script_lines.append("HAS_BS = hasattr(core, 'bs')")
+    script_lines.append("HAS_FFMS2 = hasattr(core, 'ffms2')")
+    script_lines.append("def load_source(path):")
+    script_lines.append("    if HAS_LSMASH:")
+    script_lines.append("        return core.lsmas.LWLibavSource(path, cachedir=cache_dir)")
+    script_lines.append("    elif HAS_BS:")
+    script_lines.append("        return core.bs.VideoSource(source=path)")
+    script_lines.append("    elif HAS_FFMS2:")
+    script_lines.append("        return core.ffms2.Source(path)")
+    script_lines.append("    else:")
+    script_lines.append("        raise RuntimeError('未找到视频源插件: 需要 LSMASHSource/BestSource/FFMS2')")
     script_lines.append("")
     
     # 生成每个视频的加载代码
@@ -108,12 +138,15 @@ def generate_preview_script(videos: List, output_path: str = "preview.vpy"):
         filepath = video.filepath.replace("\\", "\\\\")
 
         script_lines.append(f"# {video.name} - {video.fps_type}")
-        script_lines.append(f'{var_name} = core.lsmas.LWLibavSource(r"{filepath}", cachedir=cache_dir)')
+        script_lines.append(f'{var_name} = load_source(r"{filepath}")')
 
-        # 应用QTGMC
+        # 应用QTGMC（仅在 havsfunc 可用时）
         if video.use_qtgmc:
             tff_value = "True" if getattr(video, 'qtgmc_tff', True) else "False"
-            script_lines.append(f'{var_name} = haf.QTGMC({var_name}, Preset="Slower", TFF={tff_value}, FPSDivisor=2)')
+            script_lines.append("if HAF_AVAILABLE:")
+            script_lines.append(f"    {var_name} = haf.QTGMC({var_name}, Preset=\"Slower\", TFF={tff_value}, FPSDivisor=2)")
+            script_lines.append("else:")
+            script_lines.append("    print('警告: havsfunc 未安装，跳过 QTGMC')")
 
         # 应用帧率对齐
         apply_alignment_mode(var_name, video, script_lines)
@@ -243,10 +276,12 @@ def generate_screenshot_script(videos: List, frame_numbers: List[int],
         frame_numbers: 要截图的帧号列表
         output_path: 输出脚本路径
     """
+    # 是否需要 QTGMC（仅当至少一个视频勾选时才尝试导入 havsfunc）
+    needs_qtgmc = any(getattr(v, 'use_qtgmc', False) for v in videos)
+
     script_lines = [
         "import vapoursynth as vs",
         "core = vs.core",
-        "import havsfunc as haf",
         "import os",
         "",
         "# 截图脚本",
@@ -257,6 +292,18 @@ def generate_screenshot_script(videos: List, frame_numbers: List[int],
         "os.makedirs(cache_dir, exist_ok=True)",
         ""
     ]
+
+    if needs_qtgmc:
+        script_lines.append("try:")
+        script_lines.append("    import havsfunc as haf")
+        script_lines.append("    HAF_AVAILABLE = True")
+        script_lines.append("except ImportError:")
+        script_lines.append("    HAF_AVAILABLE = False")
+        script_lines.append("    print('警告: havsfunc 未安装，QTGMC 将被跳过')")
+        script_lines.append("")
+    else:
+        script_lines.append("HAF_AVAILABLE = False")
+        script_lines.append("")
 
     # 生成每个视频的加载代码
     var_names = []
@@ -272,12 +319,15 @@ def generate_screenshot_script(videos: List, frame_numbers: List[int],
         filepath = video.filepath.replace("\\", "\\\\")
 
         script_lines.append(f"# {video.name} - {video.fps_type}")
-        script_lines.append(f'{var_name} = core.lsmas.LWLibavSource(r"{filepath}", cachedir=cache_dir)')
+        script_lines.append(f'{var_name} = load_source(r"{filepath}")')
 
-        # 应用QTGMC
+        # 应用QTGMC（仅在 havsfunc 可用时）
         if video.use_qtgmc:
             tff_value = "True" if getattr(video, 'qtgmc_tff', True) else "False"
-            script_lines.append(f'{var_name} = haf.QTGMC({var_name}, Preset="Slower", TFF={tff_value}, FPSDivisor=2)')
+            script_lines.append("if HAF_AVAILABLE:")
+            script_lines.append(f"    {var_name} = haf.QTGMC({var_name}, Preset=\"Slower\", TFF={tff_value}, FPSDivisor=2)")
+            script_lines.append("else:")
+            script_lines.append("    print('警告: havsfunc 未安装，跳过 QTGMC')")
 
         # 应用帧率对齐
         apply_alignment_mode(var_name, video, script_lines)
@@ -408,4 +458,19 @@ def generate_vspreview_config(videos: List, vpy_path: str):
 if __name__ == "__main__":
     # 测试代码
     print("VPY脚本生成模块已加载")
+
+    # 源插件检测与加载函数
+    script_lines.append("HAS_LSMASH = hasattr(core, 'lsmas')")
+    script_lines.append("HAS_BS = hasattr(core, 'bs')")
+    script_lines.append("HAS_FFMS2 = hasattr(core, 'ffms2')")
+    script_lines.append("def load_source(path):")
+    script_lines.append("    if HAS_LSMASH:")
+    script_lines.append("        return core.lsmas.LWLibavSource(path, cachedir=cache_dir)")
+    script_lines.append("    elif HAS_BS:")
+    script_lines.append("        return core.bs.VideoSource(source=path)")
+    script_lines.append("    elif HAS_FFMS2:")
+    script_lines.append("        return core.ffms2.Source(path)")
+    script_lines.append("    else:")
+    script_lines.append("        raise RuntimeError('未找到视频源插件: 需要 LSMASHSource/BestSource/FFMS2')")
+    script_lines.append("")
 

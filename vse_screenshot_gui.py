@@ -1447,6 +1447,7 @@ __pycache__/
     def launch_vspreview(self, script_path: str):
         """启动VSPreview"""
         import subprocess
+        from pathlib import Path
 
         # 检查是否存在旧的存储文件，如果有则自动删除
         script_dir = os.path.dirname(os.path.abspath(script_path))
@@ -1472,19 +1473,60 @@ __pycache__/
             except Exception as e:
                 self.log(f"删除旧存储文件失败: {e}")
 
-        # 尝试直接调用 vspreview
+        # 优先使用当前目录下的便携版 VapourSynth 的 python
+        try:
+            portable_root = Path(__file__).resolve().parent / "vapoursynth-portable"
+            portable_python = portable_root / "python.exe"
+            abs_script = os.path.abspath(script_path)
+
+            if portable_python.exists():
+                env = os.environ.copy()
+                # 优先让便携版目录出现在 PATH 前端，以加载对应 dll/插件
+                env["PATH"] = str(portable_root) + os.pathsep + env.get("PATH", "")
+
+                try:
+                    # 在便携版根目录下运行，保证 portable.vs 生效
+                    self.preview_process = subprocess.Popen(
+                        [str(portable_python), "-m", "vspreview", abs_script],
+                        env=env,
+                        cwd=str(portable_root)
+                    )
+                    self.log(f"已使用便携版 Python 启动 VSPreview: {script_path}")
+                    return
+                except FileNotFoundError:
+                    # 便携版 python 没有安装 vspreview 模块，继续尝试系统 vspreview
+                    self.log("便携版 Python 未找到 vspreview 模块，尝试使用系统 vspreview。")
+                except Exception as e:
+                    self.log(f"使用便携版 Python 启动 VSPreview 失败: {e}")
+        except Exception as e:
+            # 忽略便携版检测错误，继续走后续回退逻辑
+            self.log(f"检测便携版 VapourSynth 失败: {e}")
+
+        # 尝试直接调用系统的 vspreview 可执行入口
         try:
             self.preview_process = subprocess.Popen(["vspreview", script_path])
             self.log(f"已启动 VSPreview: {script_path}")
+            return
         except FileNotFoundError:
-            # 回退到 python -m vspreview
-            try:
-                self.preview_process = subprocess.Popen([sys.executable, "-m", "vspreview", script_path])
-                self.log(f"已启动 VSPreview (python -m): {script_path}")
-            except Exception as e:
-                self.log(f"启动 VSPreview 失败: {e}")
-                messagebox.showerror("错误",
-                    f"无法启动 VSPreview。\n请确保已安装: pip install vspreview\n错误: {e}")
+            pass
+
+        # 最后回退到当前解释器的 python -m vspreview
+        try:
+            self.preview_process = subprocess.Popen([sys.executable, "-m", "vspreview", script_path])
+            self.log(f"已启动 VSPreview (python -m): {script_path}")
+        except Exception as e:
+            self.log(f"启动 VSPreview 失败: {e}")
+            messagebox.showerror(
+                "错误",
+                (
+                    "无法启动 VSPreview。\n"
+                    "如果希望使用便携版作为运行基础，请在目录 'vapoursynth-portable' 下执行:\n\n"
+                    "  python.exe -m pip install -U vsengine vspreview PyYAML\n"
+                    "  python.exe -m pip install -U awsmfunc havsfunc (如需 QTGMC)\n\n"
+                    "也可以安装必要的 VS 插件 (如 L-SMASH-Works、NNEDI3、fmtconv 等) 到 'vs-plugins'\n"
+                    "错误: " + str(e)
+                )
+            )
 
     def show_image_viewer(self, event=None):
         """显示图片查看器"""

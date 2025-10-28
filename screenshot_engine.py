@@ -123,8 +123,19 @@ def load_video_clip(video, add_frameinfo=False, skip_fps_conversion=False):
     cache_dir = os.path.join(os.getcwd(), '.cache')
     os.makedirs(cache_dir, exist_ok=True)
 
-    # 加载视频，指定缓存目录
-    clip = core.lsmas.LWLibavSource(video.filepath, cachedir=cache_dir)
+    # 加载视频，指定缓存目录（根据可用插件选择）
+    try:
+        if hasattr(core, 'lsmas'):
+            clip = core.lsmas.LWLibavSource(video.filepath, cachedir=cache_dir)
+        elif hasattr(core, 'bs'):
+            clip = core.bs.VideoSource(source=video.filepath)
+        elif hasattr(core, 'ffms2'):
+            clip = core.ffms2.Source(video.filepath)
+        else:
+            raise RuntimeError('未找到视频源插件: 需要 LSMASHSource/BestSource/FFMS2')
+    except Exception as e:
+        print(f"错误: 加载视频源失败: {e}")
+        raise
 
     # 保存原始clip用于FrameInfo
     original_clip = clip

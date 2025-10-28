@@ -1,6 +1,5 @@
 import vapoursynth as vs
 core = vs.core
-import havsfunc as haf
 import os
 
 # 预览脚本 - 偏移量为0
@@ -10,15 +9,39 @@ cache_dir = os.path.join(os.getcwd(), '.cache')
 os.makedirs(cache_dir, exist_ok=True)
 
 try:
+    import havsfunc as haf
+    HAF_AVAILABLE = True
+except ImportError:
+    HAF_AVAILABLE = False
+    print('警告: havsfunc 未安装，QTGMC 将被跳过')
+
+try:
     import awsmfunc as awf
     HAS_AWSMFUNC = True
 except ImportError:
     HAS_AWSMFUNC = False
     print('警告: awsmfunc 未安装，将不显示帧信息')
 
-# [P003]【4K修复】魔幻手机1 1.1.mp4 - 原生PAL (25fps)
-P003__4K修复_魔幻手机1_1_1_mp4 = core.lsmas.LWLibavSource(r"Y:/画质对比/魔幻手机/all/[P003]【4K修复】魔幻手机1 1.1.mp4", cachedir=cache_dir)
-if HAS_AWSMFUNC:
-    P003__4K修复_魔幻手机1_1_1_mp4 = awf.FrameInfo(P003__4K修复_魔幻手机1_1_1_mp4, '[P003]【4K修复】魔幻手机1 1.1.mp4')
+HAS_LSMASH = hasattr(core, 'lsmas')
+HAS_BS = hasattr(core, 'bs')
+HAS_FFMS2 = hasattr(core, 'ffms2')
+def load_source(path):
+    if HAS_LSMASH:
+        return core.lsmas.LWLibavSource(path, cachedir=cache_dir)
+    elif HAS_BS:
+        return core.bs.VideoSource(source=path)
+    elif HAS_FFMS2:
+        return core.ffms2.Source(path)
+    else:
+        raise RuntimeError('未找到视频源插件: 需要 LSMASHSource/BestSource/FFMS2')
 
-P003__4K修复_魔幻手机1_1_1_mp4.set_output(0)
+# “他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.“他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.978494961.mp4 - 原生PAL (25fps)
+他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4 = load_source(r"D:/Documents/“他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.“他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.978494961.mp4")
+if HAF_AVAILABLE:
+    他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4 = haf.QTGMC(他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4, Preset="Slower", TFF=True, FPSDivisor=2)
+else:
+    print('警告: havsfunc 未安装，跳过 QTGMC')
+if HAS_AWSMFUNC:
+    他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4 = awf.FrameInfo(他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4, '“他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.“他曾把情郎思,也曾把君王刺”【焦恩俊___黄天霸】.978494961.mp4')
+
+他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸___他曾把情郎思_也曾把君王刺__焦恩俊___黄天霸__978494961_mp4.set_output(0)
