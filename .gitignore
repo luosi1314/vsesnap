@@ -1,0 +1,24 @@
+# 缓存文件
+.cache/
+*.lwi
+
+# 截图目录
+screenshots_*/
+
+# Python缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 配置文件（可选）
+# config.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+projects/*
+.vsjet/*
+.cache/*
